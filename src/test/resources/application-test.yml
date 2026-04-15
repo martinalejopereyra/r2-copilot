@@ -1,0 +1,55 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/r2_onboarding_test
+    username: admin
+    password: password
+  flyway:
+    locations:
+      - classpath:db/migration
+      - classpath:db/seed
+      - classpath:db/testdata
+  jpa:
+    hibernate:
+      ddl-auto: none
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - io.micrometer.registry.otlp.autoconfigure.OtlpMetricsExportAutoConfiguration
+  oauth2:
+    resourceserver:
+      jwt:
+        issuer-uri: http://localhost:9999/default
+        jwk-set-uri: http://localhost:9999/default/jwks
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      embedding:
+        enabled: true
+        options:
+          model: mxbai-embed-large
+          num_ctx: 8192
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-haiku-4-5-20251001
+          temperature: 0.1
+          max-tokens: 1024
+
+management:
+  otlp:
+    metrics:
+      export:
+        enabled: false
+    tracing:
+      endpoint: ""
+  tracing:
+    enabled: false
+
+loki:
+  url: http://localhost:3100
+
+logging:
+  level:
+    org.springframework.ai.ollama: DEBUG

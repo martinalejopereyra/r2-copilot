@@ -1,0 +1,13 @@
+body { font-family: 'Inter', sans-serif; background: #f4f7f6; margin: 0; display: flex; justify-content: center; height: 100vh; }
+.app-container { width: 100%; max-width: 600px; background: white; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+header { padding: 20px; background: #1a1a1a; color: white; display: flex; justify-content: space-between; align-items: center; }
+h1 { margin: 0; font-size: 1.2rem; }
+#partner-id { background: #333; border: none; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; width: 100px; }
+#chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+.msg { padding: 12px 16px; border-radius: 12px; max-width: 80%; line-height: 1.4; }
+.bot { background: #e9f0ff; align-self: flex-start; border-bottom-left-radius: 2px; }
+.user { background: #1a1a1a; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+footer { padding: 20px; border-top: 1px solid #eee; display: flex; gap: 10px; }
+#user-input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+#send-btn { background: #1a1a1a; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
+.status-badge { font-size: 0.7rem; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 10px; }

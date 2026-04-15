@@ -1,0 +1,30 @@
+[
+  {
+    "partnerId": "ubereats",
+    "stage": "START",
+    "question": "How do I get started with the integration?",
+    "expectedBehavior": "The response should guide the partner to create credentials, mentioning client ID and secret",
+    "shouldCallTool": "docAgentTool"
+  },
+  {
+    "partnerId": "rappi",
+    "stage": "AUTH_CONFIGURED",
+    "question": "I'm getting a 401 on every auth request",
+    "expectedBehavior": "The response should acknowledge the 401 error and attempt to fetch or reference logs to diagnose the authentication issue",
+    "shouldCallTool": "getLatestLogs"
+  },
+  {
+    "partnerId": "doordash",
+    "stage": "WEBHOOK_SET",
+    "question": "My webhook is receiving events successfully",
+    "expectedBehavior": "The response should acknowledge the webhook is working and guide the partner toward the next integration step",
+    "shouldCallTool": "markStageAsCompleted"
+  },
+  {
+    "partnerId": "pedidosya",
+    "stage": "LIVE",
+    "question": "We're seeing latency spikes in production",
+    "expectedBehavior": "The response should help diagnose the latency issue by asking for more context or checking logs",
+    "shouldCallTool": null
+  }
+]

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R2 Partner Copilot</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://googleapis.com" rel="stylesheet">
+</head>
+<body>
+<div class="app-container">
+    <header>
+        <div class="header-content">
+            <h1>R2 Copilot</h1>
+            <div class="partner-info">
+                <input type="text" id="partner-id" placeholder="Partner ID (e.g. MercadoLibre)" value="mercadolibre">
+                <span class="status-badge">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <main id="chat-box">
+        <div class="msg bot">Welcome! I'm your R2 Integration Assistant. How can I help you with your onboarding today?</div>
+    </main>
+
+    <footer id="input-area">
+        <input type="text" id="user-input" placeholder="Ask about authentication, endpoints, or errors..." autocomplete="off">
+        <button id="send-btn">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+                <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+        </button>
+    </footer>
+</div>
+
+<script src="js/chat.js"></script>
+</body>
+</html>

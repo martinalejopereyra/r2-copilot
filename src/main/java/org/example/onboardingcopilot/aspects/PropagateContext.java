@@ -1,0 +1,12 @@
+package org.example.onboardingcopilot.aspects;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface PropagateContext {
+    int sessionIdArgIndex() default 1; // which argument is the sessionId
+}

@@ -1,0 +1,102 @@
+spring:
+  application:
+    name: onboarding-copilot
+
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
+
+  threads:
+    virtual:
+      enabled: true
+
+  main:
+    allow-bean-definition-overriding: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_ISSUER_URL:http://localhost:9999/default}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/r2_onboarding}
+    username: ${SPRING_DATASOURCE_USER:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    user: ${spring.datasource.username}
+    password: ${spring.datasource.password}
+    url: ${spring.datasource.url}
+    locations:
+      - classpath:db/migration
+      - classpath:db/seed
+    baseline-on-migrate: true
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    defer-datasource-initialization: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  ai:
+    ollama:
+      base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        enabled: true
+        options:
+          model: mxbai-embed-large
+          num_ctx: 8192
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-haiku-4-5-20251001
+          temperature: 0.1
+          max-tokens: 1024
+
+    vectorstore:
+      qdrant:
+        host: ${SPRING_AI_VECTORSTORE_QDRANT_HOST:localhost}
+        port: 6334
+        use-tls: false
+        collection-name: vector_store
+        initialize-schema: true
+    docs:
+      path: ${AI_DOCS_PATH:./docs_folder}
+    loki:
+      url: ${LOKI_URL:http://loki:3100}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus,info,metrics"
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  metrics:
+    export:
+      otlp:
+        url: http://otel-collector:4318/v1/metrics
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        orchestrator.llm.latency: true
+
+logging:
+  level:
+    root: INFO

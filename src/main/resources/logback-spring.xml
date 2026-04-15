@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <immediateFlush>true</immediateFlush>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %5p
+                [${appName},%X{trace_id:-},%X{span_id:-},%X{partner_id:-},%X{session_id:-}] %logger{36} - %msg%n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
+        <appender-ref ref="STDOUT"/>
+        <addBaggage>true</addBaggage>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="OTEL"/>
+    </root>
+
+    <logger name="org.springframework.ai" level="DEBUG"/>
+    <logger name="org.springframework.ai.chat.client" level="DEBUG"/>
+    <logger name="org.springframework.ai.ollama" level="DEBUG"/>
+    <logger name="org.hibernate.SQL" level="INFO"/>
+    <logger name="org.flywaydb" level="INFO"/>
+    <logger name="org.springframework.security" level="INFO"/>
+    <logger name="io.opentelemetry" level="INFO"/>
+</configuration>
