@@ -1,6 +1,7 @@
 
 package org.example.onboardingcopilot.repositoy;
 
+import io.opentelemetry.api.trace.Span;
 import lombok.RequiredArgsConstructor;
 import org.example.onboardingcopilot.model.ChatSession;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;

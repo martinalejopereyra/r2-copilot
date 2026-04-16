@@ -85,7 +85,7 @@
       "targets": [
         {
           "expr": "sum(increase(stage_advancement_total[1h])) by (from, to)",
-          "legendFormat": "{{from}} Ã¢â€ â€™ {{to}}"
+          "legendFormat": "{{from}} to {{to}}"
         }
       ]
     },
@@ -137,6 +137,118 @@
             "mode": "absolute",
             "steps": [{ "color": "blue", "value": 0 }]
           }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Tokens hoy",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 24, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(llm_tokens_input_total[24h])) + sum(increase(llm_tokens_output_total[24h]))",
+          "legendFormat": "Total tokens"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": 0 }]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Costo estimado hoy (USD)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 24, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "(sum(increase(llm_tokens_input_total[24h])) * 0.00000025) + (sum(increase(llm_tokens_output_total[24h])) * 0.00000125)",
+          "legendFormat": "USD"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Tokens input vs output por partner",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(llm_tokens_input_total[1h])) by (partner)",
+          "legendFormat": "input - {{partner}}"
+        },
+        {
+          "expr": "sum(increase(llm_tokens_output_total[1h])) by (partner)",
+          "legendFormat": "output - {{partner}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Tokens por minuto",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 30, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(llm_tokens_input_total[5m])) by (partner)",
+          "legendFormat": "input - {{partner}}"
+        },
+        {
+          "expr": "sum(rate(llm_tokens_output_total[5m])) by (partner)",
+          "legendFormat": "output - {{partner}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Tokens por stage",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 30, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(llm_tokens_input_total[1h]) + increase(llm_tokens_output_total[1h])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
         }
       }
     }

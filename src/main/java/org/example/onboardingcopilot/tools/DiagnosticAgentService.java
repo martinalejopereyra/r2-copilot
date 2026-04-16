@@ -17,11 +17,7 @@ public class DiagnosticAgentService implements AgentTool {
     private final MeterRegistry meterRegistry;
     private final LogProvider logProvider;
 
-    @Tool(description = """
-            Retrieves the latest integration logs for the current partner.
-            Call this when the partner reports any error, issue, or asks about their integration status.
-            Always call this before drawing any conclusions about what might be wrong.
-            """)
+    @Tool(description = "Get latest integration logs for the current partner. Call before diagnosing any error.")
     public String getLatestLogs(ToolContext toolContext) {
         String partnerId = (String) toolContext.getContext().get("partnerId");
         String currentStatus = (String) toolContext.getContext().get("currentStatus");

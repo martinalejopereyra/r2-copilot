@@ -2,6 +2,7 @@ package org.example.onboardingcopilot.service;
 
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.opentelemetry.api.trace.Span;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.onboardingcopilot.aspects.Guardrailed;
@@ -14,6 +15,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.stereotype.Service;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.metadata.Usage;
+
 
 import java.util.List;
 import java.util.Map;
@@ -68,8 +72,8 @@ public class OrchestratorService {
         log.info("Processing interaction for Partner: {} | Status: {}",
                 partnerId, onboarding.getCurrentStatus());
 
-        return meterRegistry.timer("orchestrator.llm.latency",
-                        "status", onboarding.getCurrentStatus().name())
+        ChatResponse chatResponse = meterRegistry.timer("orchestrator.llm.latency",
+                        "status", currentStatus.name())
                 .record(() -> chatClient.prompt()
                         .system(s -> s.text(SYSTEM_PROMPT_TEMPLATE)
                                 .param("partnerId", partnerId)
@@ -85,6 +89,37 @@ public class OrchestratorService {
                                 "currentStatus", currentStatus.name()
                         ))
                         .call()
-                        .content());
+                        .chatResponse());
+
+        Usage usage = chatResponse.getMetadata() != null && chatResponse.getMetadata().getUsage() != null
+                ? chatResponse.getMetadata().getUsage()
+                : null;
+        if (usage != null) {
+            log.info("Tokens — input={} output={} total={} partner={} stage={}",
+                    usage.getPromptTokens(),
+                    usage.getCompletionTokens(),
+                    usage.getTotalTokens(),
+                    partnerId,
+                    currentStatus.name());
+
+            meterRegistry.counter("llm.tokens.input",
+                            "partner", partnerId,
+                            "status", currentStatus.name())
+                    .increment(usage.getPromptTokens());
+
+            meterRegistry.counter("llm.tokens.output",
+                            "partner", partnerId,
+                            "status", currentStatus.name())
+                    .increment(usage.getCompletionTokens());
+
+            Span.current()
+                    .setAttribute("llm.tokens.input", usage.getPromptTokens())
+                    .setAttribute("llm.tokens.output", usage.getCompletionTokens())
+                    .setAttribute("llm.tokens.total", usage.getTotalTokens())
+                    .setAttribute("llm.partner", partnerId)
+                    .setAttribute("llm.stage", currentStatus.name());
+        }
+
+        return chatResponse.getResult().getOutput().getText();
     }
 }
