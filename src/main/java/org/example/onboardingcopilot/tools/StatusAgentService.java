@@ -18,11 +18,7 @@ public class StatusAgentService implements AgentTool {
     private final MeterRegistry meterRegistry;
 
     @Transactional
-    @Tool(description = """
-            Marks the current onboarding stage as completed and advances the partner to the next stage.
-            Only call this after the partner has confirmed success AND logs show successful responses.
-            Never call this based on the partner's words alone — verify with getLatestLogs first.
-            """)
+    @Tool(description = "Advance partner to next onboarding stage. Only call when logs confirm successful integration.")
     public String markStageAsCompleted(ToolContext toolContext) {
         String partnerId = (String) toolContext.getContext().get("partnerId");
         if (partnerId == null) return "Error: security context missing.";

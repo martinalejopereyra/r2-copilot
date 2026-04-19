@@ -1,128 +1,178 @@
-const chatBox = document.getElementById('chat-box');
-const userInput = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-const partnerInput = document.getElementById('partner-id');
-const statusBadge = document.querySelector('.status-badge');
+const SESSION_KEY = 'r2_session_id';
 
-let partnerAccessToken = "";
+let token = null;
+let sessionId = localStorage.getItem(SESSION_KEY) || null;
+let isWaiting = false;
 
-async function autoAuthenticate() {
-    const mockServerUrl = "http://localhost:9999/default/token";
-    const partnerId = partnerInput.value.trim() || "MercadoLibre";
-
-    const clientSecret = "secret";
-
-    // Encode credentials to Base64 for the 'Authorization: Basic' header
-    const encodedCredentials = btoa(`${partnerId}:${clientSecret}`);
-
-    try {
-        statusBadge.innerText = "Authenticating...";
-
-        const response = await fetch(mockServerUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Basic ${encodedCredentials}` // Fixes the 401
-            },
-            body: new URLSearchParams({
-                'grant_type': 'client_credentials',
-                'scope': 'openid',
-                'sub': partnerId // Sets the 'sub' claim in the JWT for your Backend
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Auth failed (${response.status}): ${errorText}`);
-        }
-
-        const data = await response.json();
-        partnerAccessToken = data.access_token;
-
-        // Success UI update
-        statusBadge.innerText = "RAG Active";
-        statusBadge.style.background = "#27ae60";
-        console.log("JWT acquired for partner:", partnerId);
-
-    } catch (error) {
-        statusBadge.innerText = "Auth Error";
-        statusBadge.style.background = "#e74c3c";
-        console.error("Token request failed:", error);
-    }
-}
-
-/**
- * 2. Función de Renderizado
- */
-function appendMessage(role, text) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `msg ${role}`;
-    msgDiv.innerText = text;
-    chatBox.appendChild(msgDiv);
-
-    // Scroll automático hacia abajo
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-/**
- * 3. Enviar mensaje al backend
- */
-async function sendMessage() {
-    const message = userInput.value.trim();
-    if (!message) return;
-
-    // Si por alguna razón perdimos el token, intentamos reconectar
-    if (!partnerAccessToken) await autoAuthenticate();
-
-    appendMessage('user', message);
-    userInput.value = '';
-
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'msg bot typing';
-    typingDiv.innerText = '...';
-    chatBox.appendChild(typingDiv);
-
-    const savedId = localStorage.getItem('session_id');
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${partnerAccessToken}`,
-    };
-    if (savedId) {
-        headers['X-Session-Id'] = savedId;
-    }
-
-    try {
-        const response = await fetch(`/api/v1/chat`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(message)
-        });
-
-        const newSessionId = response.headers.get('X-Session-Id');
-        console.log('Session ID from response:', newSessionId);
-
-       if (newSessionId) {
-           localStorage.setItem('session_id', newSessionId);
-           console.log('Session ID saved to localStorage:', newSessionId);
-       }
-        const data = await response.text();
-        chatBox.removeChild(typingDiv);
-        appendMessage('bot', data);
-    } catch (error) {
-        if (chatBox.contains(typingDiv)) chatBox.removeChild(typingDiv);
-        appendMessage('bot', 'Connection error. Is the backend running?');
-    }
-}
-
-// Event Listeners
-sendBtn.addEventListener('click', sendMessage);
-userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-
-// Si el usuario cambia el Partner ID en tu input de la cabecera
-partnerInput.addEventListener('change', () => {
-    partnerAccessToken = "";
-    autoAuthenticate();
+// configure marked — safe rendering
+marked.setOptions({
+    breaks: true,    // \n becomes <br> in paragraphs
+    gfm: true        // github flavored markdown — tables, code blocks, etc
 });
 
-// Inicio automático
-window.addEventListener('load', autoAuthenticate);
+async function login() {
+    const partnerId = document.getElementById('partnerId').value.trim();
+    if (!partnerId) return;
+
+    document.getElementById('loginError').textContent = '';
+
+    try {
+        const response = await fetch('http://localhost:9999/default/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `grant_type=client_credentials&client_id=${partnerId}&client_secret=secret`
+        });
+
+        if (!response.ok) throw new Error('Auth failed');
+
+        const data = await response.json();
+        token = data.access_token;
+
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('chatSection').style.display = 'flex';
+        document.getElementById('partnerLabel').textContent = partnerId;
+
+        appendMessage('assistant', 'Welcome! I am your R2 integration engineer. How can I help you today?');
+
+    } catch (err) {
+        document.getElementById('loginError').textContent = 'Login failed. Is mock-auth running?';
+    }
+}
+
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    if (!message || isWaiting || !token) return;
+
+    setWaiting(true);
+    appendMessage('user', message);
+    input.value = '';
+    input.style.height = 'auto';
+
+    const responseDiv = appendMessage('assistant', '');
+    let fullText = '';
+
+    try {
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+            'Accept': 'text/event-stream'
+        };
+        if (sessionId) headers['X-Session-Id'] = sessionId;
+
+        const response = await fetch('/api/v1/chat', {
+            method: 'POST',
+            headers,
+            body: message
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const newSessionId = response.headers.get('X-Session-Id');
+        if (newSessionId) {
+            sessionId = newSessionId;
+            localStorage.setItem(SESSION_KEY, sessionId);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (line.startsWith('data:')) {
+                    // decode newline placeholder back to \n
+                    const chunk = line.slice(5).replace(/↵/g, '\n');
+                    fullText += chunk;
+                    renderMarkdown(responseDiv, fullText);
+                    scrollToBottom();
+                }
+            }
+        }
+
+        // flush remaining buffer
+        if (buffer.startsWith('data:')) {
+            const chunk = buffer.slice(5).replace(/↵/g, '\n');
+            fullText += chunk;
+            renderMarkdown(responseDiv, fullText);
+        }
+
+        if (!fullText) responseDiv.textContent = 'No response received.';
+
+    } catch (err) {
+        responseDiv.textContent = 'Error — please try again.';
+        console.error('Chat error:', err);
+    } finally {
+        setWaiting(false);
+        input.focus();
+    }
+}
+
+function renderMarkdown(element, text) {
+    // use marked to parse markdown — renders bold, lists, code blocks, etc
+    element.innerHTML = marked.parse(text);
+}
+
+function appendMessage(role, text) {
+    const messages = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    if (role === 'assistant' && text) {
+        div.innerHTML = marked.parse(text);
+    } else {
+        div.textContent = text;
+    }
+    messages.appendChild(div);
+    scrollToBottom();
+    return div;
+}
+
+function scrollToBottom() {
+    const messages = document.getElementById('messages');
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function setWaiting(waiting) {
+    isWaiting = waiting;
+    const input = document.getElementById('messageInput');
+    const btn = document.getElementById('sendBtn');
+    input.disabled = waiting;
+    btn.disabled = waiting;
+    btn.textContent = waiting ? '...' : 'Send';
+}
+
+function newChat() {
+    sessionId = null;
+    localStorage.removeItem(SESSION_KEY);
+    document.getElementById('messages').innerHTML = '';
+    appendMessage('assistant', 'New chat started. How can I help you?');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Enter on partner ID input triggers login
+    const partnerInput = document.getElementById('partnerId');
+    if (partnerInput) {
+        partnerInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    }
+
+    // Enter on message input sends message, Shift+Enter adds newline
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+});

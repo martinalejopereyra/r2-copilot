@@ -27,11 +27,6 @@ public class PartnerOnboardingService {
                                         .currentStatus(OnboardingStatus.START)
                                         .build()
                         ));
-
-        /*return partnerOnboardingRepository.upsert(
-                UUID.randomUUID(),
-                partnerId,
-                OnboardingStatus.START.name()
-        );*/
+        
     }
 }

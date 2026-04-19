@@ -3,38 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>R2 Partner Copilot</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com" rel="stylesheet">
+    <title>R2 Partner Onboarding Copilot</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #loginSection {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            width: 360px;
+            text-align: center;
+        }
+
+        #loginSection h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #1a1a1a;
+        }
+
+        #loginSection p {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+
+        #loginSection input {
+            width: 100%;
+            padding: 0.6rem 0.9rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #loginSection input:focus { border-color: #4f46e5; }
+
+        #loginError {
+            font-size: 0.8rem;
+            color: #e53e3e;
+            margin-bottom: 0.5rem;
+            min-height: 1rem;
+        }
+
+        #loginBtn {
+            width: 100%;
+            background: #4f46e5;
+            color: white;
+        }
+
+        #chatSection {
+            display: none;
+            flex-direction: column;
+            width: 720px;
+            height: 90vh;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        #chatHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.9rem 1.2rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        #chatHeader .title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        #chatHeader .partner {
+            font-size: 0.8rem;
+            color: #666;
+            background: #f0f0f0;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.7rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: #4f46e5;
+            color: white;
+            border-bottom-right-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: #f4f4f5;
+            color: #1a1a1a;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* markdown styles inside assistant messages */
+        .message.assistant p {
+            margin-bottom: 0.5rem;
+        }
+
+        .message.assistant p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message.assistant strong {
+            font-weight: 600;
+        }
+
+        .message.assistant em {
+            font-style: italic;
+        }
+
+        .message.assistant ul,
+        .message.assistant ol {
+            margin: 0.4rem 0 0.4rem 1.2rem;
+        }
+
+        .message.assistant li {
+            margin-bottom: 0.2rem;
+        }
+
+        .message.assistant code {
+            background: #e4e4e7;
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85em;
+        }
+
+        .message.assistant pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message.assistant pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: 0.85em;
+        }
+
+        .message.assistant h1,
+        .message.assistant h2,
+        .message.assistant h3 {
+            font-weight: 600;
+            margin: 0.5rem 0 0.25rem;
+        }
+
+        .message.assistant blockquote {
+            border-left: 3px solid #d1d5db;
+            padding-left: 0.75rem;
+            color: #6b7280;
+            margin: 0.4rem 0;
+        }
+
+        .message.assistant a {
+            color: #4f46e5;
+            text-decoration: underline;
+        }
+
+        #inputArea {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.9rem 1.2rem;
+            border-top: 1px solid #eee;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 0.6rem 0.9rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        #messageInput:focus { border-color: #4f46e5; }
+        #messageInput:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        button {
+            padding: 0.6rem 1.1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #sendBtn {
+            background: #4f46e5;
+            color: white;
+            min-width: 64px;
+        }
+
+        #sendBtn:not(:disabled):hover { background: #4338ca; }
+
+        #newChatBtn {
+            background: #f4f4f5;
+            color: #444;
+            font-size: 0.8rem;
+        }
+
+        #newChatBtn:hover { background: #e5e5e5; }
+    </style>
 </head>
 <body>
-<div class="app-container">
-    <header>
-        <div class="header-content">
-            <h1>R2 Copilot</h1>
-            <div class="partner-info">
-                <input type="text" id="partner-id" placeholder="Partner ID (e.g. MercadoLibre)" value="mercadolibre">
-                <span class="status-badge">Connecting...</span>
-            </div>
-        </div>
-    </header>
 
-    <main id="chat-box">
-        <div class="msg bot">Welcome! I'm your R2 Integration Assistant. How can I help you with your onboarding today?</div>
-    </main>
-
-    <footer id="input-area">
-        <input type="text" id="user-input" placeholder="Ask about authentication, endpoints, or errors..." autocomplete="off">
-        <button id="send-btn">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-                <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-            </svg>
-        </button>
-    </footer>
+<div id="loginSection">
+    <h1>R2 Onboarding Copilot</h1>
+    <p>Enter your partner ID to get started</p>
+    <input
+            type="text"
+            id="partnerId"
+            placeholder="e.g. mercadolibre"
+            autofocus
+    />
+    <div id="loginError"></div>
+    <button id="loginBtn" onclick="login()">Connect</button>
 </div>
 
-<script src="js/chat.js"></script>
+<div id="chatSection">
+    <div id="chatHeader">
+        <span class="title">R2 Integration Engineer</span>
+        <div style="display:flex; align-items:center; gap:0.5rem">
+            <span class="partner" id="partnerLabel"></span>
+            <button id="newChatBtn" onclick="newChat()">New chat</button>
+        </div>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="inputArea">
+            <textarea
+                    id="messageInput"
+                    placeholder="Ask about authentication, webhooks, errors..."
+                    rows="1"
+                    oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,120)+'px'"
+            ></textarea>
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<!-- marked.js for markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/js/chat.js"></script>
 </body>
 </html>

@@ -2,31 +2,36 @@
 
 A conversational multi-agent system that helps partner engineers integrate with the R2 platform. Instead of waiting on Slack threads, partners get an AI copilot that reasons over API documentation, diagnoses integration errors from real logs, and guides them through each stage of the onboarding process.
 
+Partners interact through two surfaces: a **web UI** (browser) or any **MCP-compatible client** (Claude Code, Cursor) using OAuth2 or API key authentication.
+
 ---
 
 ## What it does
 
-Partners at companies like UberEats, Rappi, MercadoLibre, DoorDash, and PedidosYa need to implement R2 APIs, configure webhooks, and test the full lending flow. This chatbot replaces repetitive back-and-forth with R2 engineers by:
+Partners at companies like UberEats, Rappi, MercadoLibre, DoorDash, and PedidosYa need to implement R2 APIs, configure webhooks, and test the full lending flow. This copilot replaces repetitive back-and-forth with R2 engineers by:
 
 - Answering API and integration questions using RAG over platform documentation
 - Diagnosing errors by fetching and analyzing real integration logs from Loki
 - Tracking progress through onboarding stages and advancing partners automatically when milestones are met
+- Streaming responses token-by-token for low time-to-first-token on all surfaces
 
 ---
 
 ## Architecture
 
-Multi-agent system built on Spring Boot 4 with Java 21 virtual threads.
+Multi-agent system built on Spring Boot 4 with Java 21 virtual threads. The orchestrator streams responses via a `Flux<String>` pipeline — both the web SSE emitter and the MCP tool consume it natively.
 
 ```
-Partner browser
-    ↓ JWT auth
-Spring Security (PartnerContextFilter → partner.id in Baggage + MDC)
+Partner browser / MCP client (Claude Code, Cursor)
+    ↓ JWT (OAuth2) or API key (Bearer / X-Api-Key)
+Spring Security  ApiKeyFilter → BearerTokenAuth → PartnerContextFilter
+                 partner.id in MDC + OTel Baggage + RequestAttributeSecurityContextRepository
     ↓
-ChatController  POST /api/v1/chat
+ChatController  POST /api/v1/chat   (web, SSE stream)
+McpIntegrationTool  POST /mcp/sse  (MCP, Streamable HTTP or legacy SSE)
     ↓
-OrchestratorService  (LLM-as-router)
-    ↓ ToolContext carries partnerId — never from LLM
+OrchestratorService  Flux<String>  .contextCapture()  (same trace ID across all threads)
+    ↓ ToolContext carries partnerId — never sourced from LLM
     ├── DocAgentService        RAG over API docs via Qdrant
     ├── DiagnosticAgentService Logs via LokiLogProvider / MockLogProvider
     └── StatusAgentService     Advance onboarding stage
@@ -48,7 +53,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full design details.
 | Vector store | Qdrant |
 | Database | PostgreSQL 16 |
 | Observability | OTel → Jaeger + Prometheus + Loki → Grafana |
-| Auth | JWT via mock-oauth2-server (local dev) |
+| Auth | JWT (OAuth2) + API key — mock-oauth2-server for local dev |
+| MCP | Spring AI MCP Server — Streamable HTTP + legacy SSE |
 
 ---
 
@@ -74,7 +80,6 @@ Create a `.env` file in the project root:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-your-key-here
-GROQ_API_KEY=your-groq-key-here
 ```
 
 **2 — Start infrastructure**
@@ -95,7 +100,7 @@ docker-compose exec ollama ollama pull mxbai-embed-large
 ./gradlew bootRun
 ```
 
-The app starts on `http://localhost:8080`. Open `http://localhost:8080/index.html` to use the chat interface.
+The app starts on `http://localhost:8080`. Open `http://localhost:8080/index.html` for the chat interface.
 
 ---
 
@@ -112,7 +117,7 @@ The app starts on `http://localhost:8080`. Open `http://localhost:8080/index.htm
 
 ---
 
-## Getting a JWT for API calls
+## Getting a JWT for web / REST calls
 
 ```powershell
 $token = (Invoke-RestMethod `
@@ -146,16 +151,133 @@ curl -X POST http://localhost:8080/v1/webhooks -H "Authorization: Bearer $token"
 
 ---
 
+## Connecting via MCP
+
+The copilot exposes an MCP tool (`askIntegrationEngineer`) at `http://localhost:8080/mcp/sse`. Two authentication methods are supported.
+
+### Option A — OAuth2 (recommended for Claude Code)
+
+The server implements OAuth2 dynamic client registration (RFC 7591) and protected resource metadata (RFC 9728). Claude Code handles the full OAuth flow automatically.
+
+**Claude Code** (`~/.claude.json` or via `/mcp add`):
+
+```json
+{
+  "mcpServers": {
+    "r2-copilot": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp/sse"
+    }
+  }
+}
+```
+
+**Cursor** (Settings → MCP → Add server):
+
+```json
+{
+  "mcpServers": {
+    "r2-copilot": {
+      "url": "http://localhost:8080/mcp/sse",
+      "type": "http"
+    }
+  }
+}
+```
+
+On first connection the client will open a browser window to complete the OAuth2 authorization flow against `mock-oauth2-server`. Any partner credential that produces a valid token works — use the same `client_id` / `client_secret` pairs from the JWT section above (e.g. `client_id=mercadolibre&client_secret=secret`).
+
+---
+
+### Option B — API key (simpler, no browser flow)
+
+**1 — Create an API key**
+
+```powershell
+curl -X POST http://localhost:8080/dev/api-key/mercadolibre
+```
+
+Response:
+
+```json
+{ "apiKey": "5b949328-907d-4142-9ab3-4a96cb1c082d" }
+```
+
+Store it — it won't be shown again (only the SHA-256 hash is stored server-side).
+
+**2 — Configure Claude Code** (`~/.claude.json` or via `/mcp add`):
+
+```json
+{
+  "mcpServers": {
+    "r2-copilot-api-key": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer 5b949328-907d-4142-9ab3-4a96cb1c082d"
+      }
+    }
+  }
+}
+```
+
+**Cursor** (Settings → MCP → Add server):
+
+```json
+{
+  "mcpServers": {
+    "r2-copilot-api-key": {
+      "url": "http://localhost:8080/mcp/sse",
+      "type": "http",
+      "headers": {
+        "Authorization": "Bearer <your-api-key>"
+      }
+    }
+  }
+}
+```
+
+> **Note:** Use `type: "http"` (Streamable HTTP / POST-first) for both OAuth2 and API key. The legacy `type: "sse"` (GET-first) is also supported but `http` is preferred.
+
+**3 — Verify the connection**
+
+In Claude Code run `/mcp` — both servers should show as connected. Then try:
+
+```
+askIntegrationEngineer: "Where am I in the R2 integration?"
+```
+
+---
+
 ## Running tests
 
-Requires `docker-compose up -d postgres qdrant ollama` to be running.
+**1 — Start required infrastructure**
+
+```powershell
+docker-compose up -d postgres qdrant ollama mock-auth
+```
+
+Wait for Ollama to finish loading the model before running the tests (first time only):
+
+```powershell
+docker-compose exec ollama ollama pull mxbai-embed-large
+```
+
+**2 — Run the evaluation test**
 
 ```powershell
 .\gradlew.bat test --tests "org.example.onboardingcopilot.SetEvaluationTest" `
   "-Dspring.profiles.active=test" --rerun-tasks
 ```
 
-The golden set runs 4 test cases covering each onboarding stage. Each case calls the full HTTP stack with a real JWT, exercises the complete filter chain, and evaluates the LLM response for expected keywords.
+Or from bash/WSL:
+
+```bash
+./gradlew test --tests "org.example.onboardingcopilot.SetEvaluationTest" \
+  -Dspring.profiles.active=test --rerun-tasks
+```
+
+The golden set runs 4 test cases covering each onboarding stage. Each case calls the full HTTP stack with a real JWT against `mock-auth`, exercises the complete filter chain, and evaluates the LLM response using Claude as a judge.
 
 ---
 
@@ -164,22 +286,23 @@ The golden set runs 4 test cases covering each onboarding stage. Each case calls
 ```
 src/main/
   java/org/example/onboardingcopilot/
-    config/          Spring config, AOP aspects, security
-    controller/      ChatController, MockedOnboardingAPIController
-    filter/          PartnerContextFilter
-    model/           PartnerOnboarding, ChatSession, ChatMessage, OnboardingStatus
-    repository/      JPA repositories + PartnerChatMemoryRepository
-    service/         OrchestratorService, GuardrailService, ChatSessionService
-    tools/           AgentTool interface, DocAgent, DiagnosticAgent, StatusAgent
+    aspects/         @Guardrailed, @PropagateContext, @PartnerId, RestoreMdcAspect
+    config/          SecurityConfig, McpConfig, AiConfig, ObservationConfig, WebConfig
+    controller/      ChatController, DevApiKeyController, OAuthMetadataController
+    filter/          ApiKeyFilter, PartnerContextFilter, ResponseLoggingFilter
+    model/           PartnerOnboarding, ChatSession, ChatMessage, PartnerApiKey, OnboardingStatus
+    repositoy/       JPA repositories, PartnerChatMemoryRepository
+    service/         OrchestratorService, GuardrailService, ChatSessionService, SessionType
+    tools/           AgentTool, DocAgentService, DiagnosticAgentService, StatusAgentService
+                     McpIntegrationTool
     tools/provider/  LokiLogProvider
   resources/
-    db/migration/    Flyway schema
-    db/seed/         Partner seed data
+    db/migration/    Flyway schema (V1 init, V2 api keys + session types)
     static/          Chat UI (index.html)
 
 src/test/
   java/.../
-    config/          TestSecurityConfig, TestMetricsConfig, TestFlywayConfig, TestDatabaseInitializer
+    config/          TestSecurityConfig, TestMetricsConfig, TestFlywayConfig
     tools/           MockLogProvider
   resources/
     db/testdata/     R__test_partners.sql
@@ -190,26 +313,24 @@ grafana/provisioning/
   dashboards/        dashboard.yml + onboarding.json
 
 infra/
-  prometheus.yml
-  loki-config.yaml
-  promtail-config.yaml
-  otel-collector-config.yaml
+  prometheus.yml, loki-config.yaml, promtail-config.yaml, otel-collector-config.yaml
 
-docs_folder/     Markdown API documentation for RAG
+docs_folder/         Markdown API documentation for RAG
 ```
 
 ---
 
 ## Observability
 
-After sending a few chat messages, open Grafana at `http://localhost:3000` (admin/admin) and navigate to **Dashboards → Onboarding Copilot**. Panels show:
+After sending a few messages, open Grafana at `http://localhost:3000` (admin/admin) → **Dashboards → Onboarding Copilot**:
 
 - LLM p95 latency by onboarding stage
+- Token consumption (input/output) per partner per stage
 - Doc agent miss rate
 - Stage advancement over time
 - Guardrail blocks by direction
 
-Traces are available in Jaeger at `http://localhost:16686` — search by service `r2-copilot`. Every trace includes `partner.id` and `session.id` as baggage so you can follow a full conversation across all agent calls.
+Traces are in Jaeger at `http://localhost:16686` — search by service `r2-copilot`. Every trace includes `partner.id` and `session.id` as baggage. Thanks to `.contextCapture()` on the Flux pipeline and `TracingToolCallingManager`, the same trace ID spans the full orchestrator call — orchestrator span, agent tool child spans, and terminal callbacks — regardless of Reactor scheduler thread switches. Tool call spans appear as children of the orchestrator span, not disconnected roots. Traces persist across container restarts via Jaeger's Badger storage backend.
 
 ---
 

@@ -1,5 +1,6 @@
 package org.example.onboardingcopilot.config;
 
+import io.micrometer.tracing.Tracer;
 import io.opentelemetry.api.OpenTelemetry;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -14,5 +15,11 @@ public class TestObservationConfig {
     @Primary
     public OpenTelemetry openTelemetry() {
         return OpenTelemetry.noop();
+    }
+
+    @Bean
+    @Primary
+    public Tracer tracer() {
+        return Tracer.NOOP;
     }
 }

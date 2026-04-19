@@ -32,7 +32,7 @@ public class PartnerChatMemoryRepository implements ChatMemoryRepository {
         if (messages.isEmpty()) return;
 
         // conversationId IS sessionId now — direct lookup, no partnerId involved
-        UUID sessionPk = sessionRepository.findBySessionId(conversationId)
+        UUID sessionPk = sessionRepository.findFirstBySessionId(conversationId)
                 .map(ChatSession::getId)
                 .orElseThrow(() -> new IllegalStateException("No chat session for conversationId: " + conversationId));
 

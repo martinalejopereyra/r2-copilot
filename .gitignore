@@ -38,6 +38,7 @@ out/
 
 
 .env
+.claude/
 ollama_data/
 qdrant_data/
 grafana-data/

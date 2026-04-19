@@ -28,5 +28,4 @@ public class AiConfig {
     public RestClient restClient() {
         return RestClient.create();
     }
-
 }

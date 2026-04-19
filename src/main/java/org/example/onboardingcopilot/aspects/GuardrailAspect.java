@@ -1,6 +1,8 @@
 package org.example.onboardingcopilot.aspects;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -8,6 +10,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.example.onboardingcopilot.service.GuardrailService;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 @Aspect
 @Component
@@ -17,37 +20,55 @@ public class GuardrailAspect {
 
     private final GuardrailService guardrailService;
     private final MeterRegistry meterRegistry;
+    private final Tracer tracer;
+
+    private static final String BLOCKED_INPUT_RESPONSE =
+            "That request falls outside what I can help with. " +
+                    "I am here to assist with your R2 technical integration — " +
+                    "feel free to ask about API setup, authentication, webhooks, or any integration errors.";
 
     @Around("@annotation(Guardrailed)")
     public Object applyGuardrails(ProceedingJoinPoint joinPoint) throws Throwable {
+        Span span = tracer.nextSpan().name("guardrail.check").start();
 
-        log.info("guardrail.validate Validating input");
+        try (var ignored = tracer.withSpan(span)) {
+            span.tag("guardrail.method", joinPoint.getSignature().toShortString());
 
-        for (Object arg : joinPoint.getArgs()) {
-            if (arg instanceof String text && guardrailService.isUnsafe(text)) {
-                log.warn("Guardrail blocked input at {}", joinPoint.getSignature());
-                meterRegistry.counter("guardrail.blocked", "direction", "input").increment();
-                return "That request falls outside what I can help with. " +
-                       "I'm here to assist with your R2 technical integration — " +
-                       "feel free to ask about API setup, authentication, webhooks, or any integration errors.";
+            // INPUT — full semantic check + PII sanitize before LLM runs
+            Object[] args = joinPoint.getArgs();
+            for (int i = 0; i < args.length; i++) {
+                if (args[i] instanceof String text) {
+                    if (guardrailService.isUnsafe(text)) {
+                        log.warn("Guardrail blocked input at {}", joinPoint.getSignature());
+                        span.tag("guardrail.blocked", "input");
+                        meterRegistry.counter("guardrail.blocked", "direction", "input").increment();
+                        return Flux.just(BLOCKED_INPUT_RESPONSE);
+                    }
+                    args[i] = guardrailService.sanitize(text);
+                }
             }
-        }
 
-        Object result = joinPoint.proceed();
+            Object result = joinPoint.proceed(args);
 
-        log.info("guardrail.validate Validating output");
-
-        if (result instanceof String text) {
-            String sanitized = guardrailService.sanitize(text);
-            if (guardrailService.isUnsafe(sanitized)) {
-                log.warn("Guardrail blocked output at {}", joinPoint.getSignature());
-                meterRegistry.counter("guardrail.blocked", "direction", "output").increment();
-                return "I encountered an issue generating a response. " +
-                       "Please try rephrasing, or reach out to #r2-support on Slack if the issue persists.";
+            // OUTPUT — PII sanitize per token only, no semantic check
+            if (result instanceof Flux<?> flux) {
+                return flux.map(chunk -> {
+                    if (chunk instanceof String text) {
+                        return guardrailService.sanitize(text);
+                    }
+                    return chunk;
+                });
             }
-            return sanitized;
-        }
 
-        return result;
+            // fallback for non-streaming paths
+            if (result instanceof String text) {
+                return guardrailService.sanitize(text);
+            }
+
+            return result;
+
+        } finally {
+            span.end();
+        }
     }
 }

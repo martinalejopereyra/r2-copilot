@@ -75,6 +75,10 @@ services:
       - "4319:4318"
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
     volumes:
       - ./jaeger_data:/badger
 
@@ -160,7 +164,6 @@ services:
 
 volumes:
   grafana-data:
-  jaeger_data:
   prometheus_data:
   qdrant_data:
   ollama_data:

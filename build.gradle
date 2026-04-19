@@ -48,6 +48,7 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-qdrant'
     implementation 'org.springframework.ai:spring-ai-transformers'
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'io.micrometer:micrometer-registry-otlp'
@@ -58,10 +59,10 @@ dependencies {
     implementation 'io.opentelemetry.semconv:opentelemetry-semconv:1.25.0-alpha'
     implementation 'io.grpc:grpc-netty-shaded'
 
-
     implementation 'org.springframework.boot:spring-boot-opentelemetry'
 
     implementation 'org.flywaydb:flyway-core'
+
     implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
 

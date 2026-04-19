@@ -70,7 +70,7 @@ class SetEvaluationTest {
 
             ResponseEntity<String> responseEntity = restClient.post()
                     .uri("/api/v1/chat")
-                    .header("Authorization", "Bearer " + token)
+                    .header("Authorization", "Bearer " + getToken(gc.partnerId()))
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(gc.question())
                     .retrieve()

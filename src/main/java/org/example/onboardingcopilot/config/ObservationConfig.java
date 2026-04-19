@@ -1,5 +1,7 @@
 package org.example.onboardingcopilot.config;
 
+import io.micrometer.context.ContextRegistry;
+import io.micrometer.context.ThreadLocalAccessor;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.aop.ObservedAspect;
 import io.micrometer.tracing.Tracer;
@@ -8,6 +10,8 @@ import io.micrometer.tracing.otel.bridge.OtelBaggageManager;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
@@ -54,9 +58,44 @@ public class ObservationConfig {
                         .build())
                 .build();
 
-        return OpenTelemetrySdk.builder()
+        OpenTelemetry otel = OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .buildAndRegisterGlobal();
+
+        // Register OTel Context as a Micrometer ThreadLocalAccessor so that
+        // contextCapture() captures the active span at subscription time (on the
+        // virtual thread that owns the OTel scope) and
+        // Hooks.enableAutomaticContextPropagation() restores it on every Reactor
+        // scheduler thread — the same mechanism that already handles MDC.
+        // A thread-local Scope is used to track and close the OTel scope correctly.
+        ThreadLocal<Scope> scopeHolder = new ThreadLocal<>();
+        ContextRegistry.getInstance().registerThreadLocalAccessor(
+                new ThreadLocalAccessor<Context>() {
+                    @Override
+                    public Object key() { return Context.class; }
+
+                    @Override
+                    public Context getValue() {
+                        return Context.current();
+                    }
+
+                    @Override
+                    public void setValue(Context value) {
+                        scopeHolder.set(value.makeCurrent());
+                    }
+
+                    @Override
+                    public void setValue() {
+                        Scope scope = scopeHolder.get();
+                        if (scope != null) {
+                            scope.close();
+                            scopeHolder.remove();
+                        }
+                    }
+                }
+        );
+
+        return otel;
     }
 
     @Bean

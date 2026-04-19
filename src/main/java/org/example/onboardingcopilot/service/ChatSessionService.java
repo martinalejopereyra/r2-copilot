@@ -15,20 +15,25 @@ public class ChatSessionService {
     private final ChatSessionRepository sessionRepository;
 
     @Transactional
-    public ChatSession resolveSession(String partnerId, String sessionId) {
+    public ChatSession resolveSession(String partnerId, String sessionId, SessionType sessionType) {
         if (sessionId != null) {
-            return sessionRepository.findBySessionId(sessionId)
-                    .filter(s -> s.getPartnerId().equals(partnerId))
-                    .orElseGet(() -> createNewSession(partnerId));
+            return sessionRepository.findByPartnerIdAndSessionIdAndSessionType(partnerId, sessionId, sessionType)
+                    .orElseGet(() -> sessionRepository.save(ChatSession.builder()
+                            .id(UUID.randomUUID())
+                            .sessionId(sessionId)
+                            .sessionType(sessionType)
+                            .partnerId(partnerId)
+                            .build()));
         }
-        return createNewSession(partnerId);
+        return createNewSession(partnerId, sessionType);
     }
 
     @Transactional
-    public ChatSession createNewSession(String partnerId) {
+    public ChatSession createNewSession(String partnerId, SessionType sessionType) {
         return sessionRepository.save(ChatSession.builder()
                 .id(UUID.randomUUID())
                 .sessionId(UUID.randomUUID().toString())
+                .sessionType(sessionType)
                 .partnerId(partnerId)
                 .build());
     }

@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -22,12 +23,8 @@ public class DocAgentService implements AgentTool {
     private final VectorStore vectorStore;
     private final MeterRegistry meterRegistry;
 
-    @Tool(description = """
-            Searches the official R2 platform documentation for integration guides, API specs, and troubleshooting info.
-            Call this when the partner asks about APIs, endpoints, authentication, webhooks, or any technical specification.
-            Always call this before answering any question about how the platform works.
-            """)
-    public String docAgentTool(@Nullable String request) {
+    @Tool(description = "Search R2 platform documentation for APIs, endpoints, authentication, webhooks and integration guides.")
+    public String docAgentTool(@Nullable String request, ToolContext toolContext) {
 
         String query = (request != null && !request.isBlank())
                 ? request
